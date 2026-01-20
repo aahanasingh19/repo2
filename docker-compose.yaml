@@ -1,0 +1,93 @@
+services:
+
+
+  rabbitmq:
+   image: rabbitmq:3-management
+   container_name: rabbitmq
+   ports:
+    - "15672:15672" 
+   networks:
+    - onecart
+   environment:
+    - RABBITMQ_DEFAULT_USER=guest
+    - RABBITMQ_DEFAULT_PASS=guest
+
+  email-worker:
+    build: ./backend    
+    container_name: email-worker
+    command: node workers/email.worker.js
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - rabbitmq
+    networks:
+      - onecart
+
+  payment-worker:
+    build: ./backend
+    container_name: payment-worker
+    command: node workers/payment.worker.js
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - rabbitmq
+    networks:
+      - onecart
+
+  outbox-poller:
+    build: ./backend
+    container_name: outbox-poller
+    command: node workers/outbox.poller.js
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - rabbitmq
+    networks:
+      - onecart
+
+
+  
+  backend:
+   build: ./backend
+   container_name: backend
+   ports:
+    - "8000:8000"
+   networks:
+    - onecart
+   depends_on:
+    - rabbitmq
+  
+
+  frontend:
+   build: ./frontend
+   container_name: frontend
+   depends_on:
+    - backend
+   networks:
+    - onecart
+
+  admin:
+   build: ./admin
+   container_name: admin
+   depends_on:
+    - backend
+   networks:
+    - onecart
+  
+  nginx:
+   image: nginx:alpine
+   container_name: nginx
+   ports:
+      - "80:80"
+   volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+   depends_on:
+      - backend
+      - frontend
+      - admin
+   networks:
+      - onecart
+   
+networks:
+ onecart:
+  driver: bridge
